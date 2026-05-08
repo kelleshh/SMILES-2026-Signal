@@ -1,14 +1,16 @@
 # Task Solution
-
-## Reproducibility
-
-I ran the final version with Python 3.13.9. The only packages used by the actual signal processing code are `numpy` and `scipy`. If the repository copy uses the download helper for `challenge.mat`, `gdown` should also be installed from the project requirements.
-
-From a clean checkout, run:
+**From a clean checkout, run:**
 
 ```bash
 python applicant_solution.py
 ```
+
+## Reproducibility
+
+
+I ran the final version with Python 3.13.9. The only packages used by the actual signal processing code are `numpy` and `scipy`. If the repository copy uses the download helper for `challenge.mat`, `gdown` should also be installed from the project requirements.
+
+
 
 The solution does not require editing `task_and_baseline.py` or the dataset. The entrypoint remains `applicant_solution.py`, and the metric of record is still:
 ```python
