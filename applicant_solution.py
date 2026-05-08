@@ -1,3 +1,23 @@
+import importlib.util
+import subprocess
+import sys
+from pathlib import Path
+
+
+def ensure_requirements() -> None:
+    required_modules = ('numpy', 'scipy', 'gdown')
+    missing = [
+        module
+        for module in required_modules
+        if importlib.util.find_spec(module) is None]
+    if not missing:
+        return
+    requirements_path = Path(__file__).with_name('requirements.txt')
+    subprocess.check_call([
+        sys.executable, '-m', 'pip', 'install', '-r', str(requirements_path)])
+ensure_requirements()
+
+
 import json
 import gdown
 from pathlib import Path
