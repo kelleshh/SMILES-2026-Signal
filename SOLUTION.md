@@ -7,9 +7,7 @@ I ran the final version with Python 3.13.9. The only packages used by the actual
 From a clean checkout, run:
 
 ```bash
-pip install numpy scipy gdown
 python applicant_solution.py
-cat results.json
 ```
 
 The solution does not require editing `task_and_baseline.py` or the dataset. The entrypoint remains `applicant_solution.py`, and the metric of record is still:
