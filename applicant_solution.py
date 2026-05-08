@@ -25,13 +25,29 @@ helpers = build_task_helpers(tx_n, Fs, N)
 
 def your_canceller(tx_n: np.ndarray, rx: np.ndarray) -> np.ndarray:
     ALPHA = 0.96
-    BETA = 0.58
+    BETA = 0.72
+    RIDGE = 1e-6
+
+    model_subset = slice(20_000, 220_000)
+    lags: tuple[int, ...] = tuple(range(-5, 4))
 
     def band_matrix(x: np.ndarray):
         return np.column_stack([
             helpers['score_filter'](x[:, ch])
             for ch in range(x.shape[1])
         ])
+
+    def shift_signal(x: np.ndarray, lag: int) -> np.ndarray:
+        y = np.zeros_like(x)
+        if lag >= 0:
+            y[lag:] = x[:len(x) - lag]
+        else:
+            shift = -lag
+            y[:len(x) - shift] = x[shift:]
+        return y
+
+    def shifted_window(x: np.ndarray, lag: int, start: int, stop: int) -> np.ndarray:
+        return shift_signal(x, lag)[start:stop]
 
     def rank_component_from_vector(band: np.ndarray, vector: np.ndarray):
         shared = band @ vector
@@ -44,6 +60,55 @@ def your_canceller(tx_n: np.ndarray, rx: np.ndarray) -> np.ndarray:
 
         return shared[:, None] * coeffs[None, :]
 
+    def make_tx_terms() -> tuple[np.ndarray, ...]:
+        score_filter = helpers['score_filter']
+
+        return (
+            score_filter(tx_n[:, 0] ** 2 * tx_n[:, 1].conj()),
+            score_filter(tx_n[:, 1] ** 2 * tx_n[:, 0].conj()),
+            score_filter(tx_n[:, 0] ** 2 * tx_n[:, 3].conj()),
+            score_filter(tx_n[:, 3] ** 2 * tx_n[:, 0].conj()),
+            score_filter(tx_n[:, 1] ** 2 * tx_n[:, 2].conj()),
+            score_filter(tx_n[:, 2] ** 2 * tx_n[:, 1].conj()),
+            score_filter(tx_n[:, 3] ** 2 * tx_n[:, 2].conj()),
+            score_filter(tx_n[:, 2] ** 2 * tx_n[:, 3].conj()),
+            score_filter(tx_n[:, 0] ** 2 * tx_n[:, 5].conj()),
+            score_filter(tx_n[:, 5] ** 2 * tx_n[:, 0].conj()),
+        )
+
+    def fit_tx_prediction(
+        inp: np.ndarray,
+        tx_terms: tuple[np.ndarray, ...],
+    ) -> np.ndarray:
+        start = model_subset.start
+        stop = model_subset.stop
+
+        model_x = np.column_stack([
+            shifted_window(term, lag, start, stop)
+            for term in tx_terms
+            for lag in lags
+        ])
+
+        gram = model_x.conj().T @ model_x
+        gram = gram + RIDGE*np.eye(gram.shape[0])
+
+        pred = np.zeros_like(inp)
+
+        for ch in range(inp.shape[1]):
+            y = helpers['score_filter'](inp[:, ch])[model_subset]
+            coef = np.linalg.solve(gram, model_x.conj().T @ y)
+            coef = coef.reshape(len(tx_terms), len(lags))
+
+            ch_pred = np.zeros(inp.shape[0], dtype=np.complex128)
+
+            for term_idx, term in enumerate(tx_terms):
+                for lag_idx, lag in enumerate(lags):
+                    ch_pred += coef[term_idx, lag_idx]*shift_signal(term, lag)
+
+            pred[:, ch] = ch_pred
+
+        return pred
+
     raw_band = band_matrix(rx)
 
     cov = raw_band.conj().T @ raw_band / raw_band.shape[0]
@@ -53,7 +118,9 @@ def your_canceller(tx_n: np.ndarray, rx: np.ndarray) -> np.ndarray:
     rank2 = rank_component_from_vector(raw_band, eigvecs[:, -2])
 
     rx_precleaned = rx - ALPHA*rank1 - BETA*rank2
-    rx_hat = baseline(tx_n, rx_precleaned, helpers['fit_tx_prediction'])
+    tx_terms = make_tx_terms()
+    tx_prediction = fit_tx_prediction(rx_precleaned, tx_terms)
+    rx_hat = rx_precleaned - tx_prediction
 
     return rx_hat
 
