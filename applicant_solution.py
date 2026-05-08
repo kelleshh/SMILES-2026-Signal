@@ -24,9 +24,11 @@ helpers = build_task_helpers(tx_n, Fs, N)
 
 
 def your_canceller(tx_n: np.ndarray, rx: np.ndarray) -> np.ndarray:
-    ALPHA = 0.96
-    BETA = 0.72
-    RIDGE = 1e-6
+    ALPHA = np.array([1.02525316, 0.85411883, 0.85453843, 1.13677823])
+    BETA = np.array([0.69111315, 0.80124875, 0.59953217, 1.00000000])
+    GAMMA = np.array([0.71955212, 1.00000000, 0.80625255, 0.55269579])
+    DELTA = np.array([0.67784013, 0.94802785, 0.98519584, 0.63185416])
+    RIDGE = 3e-6
 
     model_subset = slice(20_000, 220_000)
     lags: tuple[int, ...] = tuple(range(-5, 4))
@@ -116,8 +118,17 @@ def your_canceller(tx_n: np.ndarray, rx: np.ndarray) -> np.ndarray:
 
     rank1 = rank_component_from_vector(raw_band, eigvecs[:, -1])
     rank2 = rank_component_from_vector(raw_band, eigvecs[:, -2])
+    rank3 = rank_component_from_vector(raw_band, eigvecs[:, -3])
+    rank4 = rank_component_from_vector(raw_band, eigvecs[:, -4])
 
-    rx_precleaned = rx - ALPHA*rank1 - BETA*rank2
+    rx_precleaned = (
+        rx
+        - ALPHA[None, :]*rank1
+        - BETA[None, :]*rank2
+        - GAMMA[None, :]*rank3
+        - DELTA[None, :]*rank4
+    )
+
     tx_terms = make_tx_terms()
     tx_prediction = fit_tx_prediction(rx_precleaned, tx_terms)
     rx_hat = rx_precleaned - tx_prediction
